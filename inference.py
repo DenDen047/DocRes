@@ -1,5 +1,5 @@
-import os 
-import cv2 
+import os
+import cv2
 import utils
 import argparse
 import numpy as np
@@ -15,7 +15,7 @@ from data.MBD.infer import net1_net2_infer_single_im
 
 
 def dewarp_prompt(img):
-    mask = net1_net2_infer_single_im(img,'data/MBD/checkpoint/mbd.pkl')
+    mask = net1_net2_infer_single_im(img,'data/MBD/checkpoint/mbd.pkl', cuda=DEVICE.type == 'cuda')
     base_coord = utils.getBasecoord(256,256)/256
     img[mask==0]=0
     mask = cv2.resize(mask,(256,256))/255
@@ -50,10 +50,10 @@ def deshadow_prompt(img):
     return bg_imgs
 
 def deblur_prompt(img):
-    x = cv2.Sobel(img,cv2.CV_16S,1,0)  
-    y = cv2.Sobel(img,cv2.CV_16S,0,1)  
-    absX = cv2.convertScaleAbs(x)   # 转回uint8  
-    absY = cv2.convertScaleAbs(y)  
+    x = cv2.Sobel(img,cv2.CV_16S,1,0)
+    y = cv2.Sobel(img,cv2.CV_16S,0,1)
+    absX = cv2.convertScaleAbs(x)   # 转回uint8
+    absY = cv2.convertScaleAbs(y)
     high_frequency = cv2.addWeighted(absX,0.5,absY,0.5,0)
     high_frequency = cv2.cvtColor(high_frequency,cv2.COLOR_BGR2GRAY)
     high_frequency = cv2.cvtColor(high_frequency,cv2.COLOR_GRAY2BGR)
@@ -83,10 +83,10 @@ def binarization_promptv2(img):
     result[result>155]=255
     result[result<=155]=0
 
-    x = cv2.Sobel(img,cv2.CV_16S,1,0)  
-    y = cv2.Sobel(img,cv2.CV_16S,0,1)  
-    absX = cv2.convertScaleAbs(x)   # 转回uint8  
-    absY = cv2.convertScaleAbs(y)  
+    x = cv2.Sobel(img,cv2.CV_16S,1,0)
+    y = cv2.Sobel(img,cv2.CV_16S,0,1)
+    absX = cv2.convertScaleAbs(x)   # 转回uint8
+    absY = cv2.convertScaleAbs(y)
     high_frequency = cv2.addWeighted(absX,0.5,absY,0.5,0)
     high_frequency = cv2.cvtColor(high_frequency,cv2.COLOR_BGR2GRAY)
     return np.concatenate((np.expand_dims(thresh,-1),np.expand_dims(high_frequency,-1),np.expand_dims(result,-1)),-1)
@@ -117,7 +117,7 @@ def dewarping(model,im_path):
         pred = pred+base_coord
     ## smooth
     for i in range(15):
-        pred = cv2.blur(pred,(3,3),borderType=cv2.BORDER_REPLICATE) 
+        pred = cv2.blur(pred,(3,3),borderType=cv2.BORDER_REPLICATE)
     pred = cv2.resize(pred,(w,h))*(w,h)
     pred = pred.astype(np.float32)
     out_im = cv2.remap(im_org,pred[:,:,0],pred[:,:,1],cv2.INTER_LINEAR)
@@ -135,12 +135,12 @@ def appearance(model,im_path):
     prompt = appearance_prompt(im_org)
     in_im = np.concatenate((im_org,prompt),-1)
 
-    # constrain the max resolution 
+    # constrain the max resolution
     if max(w,h) < MAX_SIZE:
         in_im,padding_h,padding_w = stride_integral(in_im,8)
     else:
         in_im = cv2.resize(in_im,(MAX_SIZE,MAX_SIZE))
-    
+
     # normalize
     in_im = in_im / 255.0
     in_im = torch.from_numpy(in_im.transpose(2,0,1)).unsqueeze(0)
@@ -164,7 +164,7 @@ def appearance(model,im_path):
             out_im = np.clip(im_org.astype(float)/shadow_map,0,255).astype(np.uint8)
 
     return prompt[:,:,0],prompt[:,:,1],prompt[:,:,2],out_im
-        
+
 
 def deshadowing(model,im_path):
     MAX_SIZE=1600
@@ -174,12 +174,12 @@ def deshadowing(model,im_path):
     prompt = deshadow_prompt(im_org)
     in_im = np.concatenate((im_org,prompt),-1)
 
-    # constrain the max resolution 
+    # constrain the max resolution
     if max(w,h) < MAX_SIZE:
         in_im,padding_h,padding_w = stride_integral(in_im,8)
     else:
         in_im = cv2.resize(in_im,(MAX_SIZE,MAX_SIZE))
-    
+
     # normalize
     in_im = in_im / 255.0
     in_im = torch.from_numpy(in_im.transpose(2,0,1)).unsqueeze(0)
@@ -213,7 +213,7 @@ def deblurring(model,im_path):
     in_im = np.concatenate((in_im,prompt),-1)
     in_im = in_im / 255.0
     in_im = torch.from_numpy(in_im.transpose(2,0,1)).unsqueeze(0)
-    in_im = in_im.half().to(DEVICE)  
+    in_im = in_im.half().to(DEVICE)
     # inference
     model.to(DEVICE)
     model.eval()
@@ -224,7 +224,7 @@ def deblurring(model,im_path):
         pred = pred[0].permute(1,2,0).cpu().numpy()
         pred = (pred*255).astype(np.uint8)
         out_im = pred[padding_h:,padding_w:]
-    
+
     return prompt[:,:,0],prompt[:,:,1],prompt[:,:,2],out_im
 
 
@@ -249,7 +249,7 @@ def binarization(model,im_path):
         pred = (pred*255).astype(np.uint8)
         pred = cv2.resize(pred,(w,h))
         out_im = pred[padding_h:,padding_w:]
-    
+
     return prompt[:,:,0],prompt[:,:,1],prompt[:,:,2],out_im
 
 
@@ -263,9 +263,9 @@ def get_args():
                         help='Path of input document image')
     parser.add_argument('--out_folder', nargs='?', type=str, default='./restorted/',
                         help='Folder of the output images')
-    parser.add_argument('--task', nargs='?', type=str, default='dewarping', 
+    parser.add_argument('--task', nargs='?', type=str, default='dewarping',
                         help='task that need to be executed')
-    parser.add_argument('--save_dtsprompt', nargs='?', type=int, default=0, 
+    parser.add_argument('--save_dtsprompt', nargs='?', type=int, default=0,
                         help='Width of the input image')
     args = parser.parse_args()
     possible_tasks = ['dewarping','deshadowing','appearance','deblurring','binarization','end2end']
@@ -274,23 +274,23 @@ def get_args():
 
 def model_init(args):
    # prepare model
-    model = restormer_arch.Restormer( 
-        inp_channels=6, 
-        out_channels=3, 
+    model = restormer_arch.Restormer(
+        inp_channels=6,
+        out_channels=3,
         dim = 48,
-        num_blocks = [2,3,3,4], 
+        num_blocks = [2,3,3,4],
         num_refinement_blocks = 4,
         heads = [1,2,4,8],
         ffn_expansion_factor = 2.66,
         bias = False,
         LayerNorm_type = 'WithBias',
-        dual_pixel_task = True        
+        dual_pixel_task = True
     )
 
     if DEVICE.type == 'cpu':
         state = convert_state_dict(torch.load(args.model_path, map_location='cpu')['model_state'])
     else:
-        state = convert_state_dict(torch.load(args.model_path, map_location='cuda:0')['model_state'])    
+        state = convert_state_dict(torch.load(args.model_path, map_location='cuda:0')['model_state'])
     model.load_state_dict(state)
 
     model.eval()

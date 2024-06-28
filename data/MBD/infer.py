@@ -7,7 +7,7 @@ import cv2
 from tqdm import tqdm
 
 import time
-import os 
+import os
 from model.deep_lab_model.deeplab import *
 from MBD import mask_base_dewarper
 import time
@@ -28,7 +28,7 @@ def net1_net2_infer(model,img_paths,args):
         ### segmentation mask predict
         img_org = cv2.imread(img_path)
         h_org,w_org = img_org.shape[:2]
-        img = cv2.resize(img_org,(448, 448))       
+        img = cv2.resize(img_org,(448, 448))
         img = cv2.GaussianBlur(img,(15,15),0,0)
         img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
         img = cvimg2torch(img)
@@ -66,22 +66,25 @@ def net1_net2_infer(model,img_paths,args):
         np.save(img_path.replace('_origin','_grid1'),grid)
 
 
-def net1_net2_infer_single_im(img,model_path):
+def net1_net2_infer_single_im(img, model_path, cuda=True):
     seg_model = DeepLab(num_classes=1,
                     backbone='resnet',
                     output_stride=16,
                     sync_bn=None,
                     freeze_bn=False)
     seg_model = torch.nn.DataParallel(seg_model, device_ids=range(torch.cuda.device_count()))
-    seg_model.cuda()
-    checkpoint = torch.load(model_path)
+    if cuda:
+        seg_model.cuda()
+        checkpoint = torch.load(model_path)
+    else:
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
     seg_model.load_state_dict(checkpoint['model_state'])
     ### validate on the real datasets
     seg_model.eval()
     ### segmentation mask predict
     img_org = img
     h_org,w_org = img_org.shape[:2]
-    img = cv2.resize(img_org,(448, 448))       
+    img = cv2.resize(img_org,(448, 448))
     img = cv2.GaussianBlur(img,(15,15),0,0)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
     img = cvimg2torch(img)
@@ -90,7 +93,10 @@ def net1_net2_infer_single_im(img,model_path):
         # from torchtoolbox.tools import summary
         # print(summary(seg_model,torch.rand((1, 3, 448, 448)).cuda())) 59.4M 135.6G
 
-        pred = seg_model(img.cuda())
+        if cuda:
+            pred = seg_model(img.cuda())
+        else:
+            pred = seg_model(img)
         mask_pred = pred[:,0,:,:].unsqueeze(1)
         mask_pred = F.interpolate(mask_pred,(h_org,w_org))
         mask_pred = mask_pred.squeeze(0).squeeze(0).cpu().numpy()
@@ -127,9 +133,9 @@ def net1_net2_infer_single_im(img,model_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hyperparams')
     parser.add_argument('--img_folder', nargs='?', type=str, default='./all_data',help='Data path to load data')
-    parser.add_argument('--img_rows', nargs='?', type=int, default=448, 
+    parser.add_argument('--img_rows', nargs='?', type=int, default=448,
                         help='Height of the input image')
-    parser.add_argument('--img_cols', nargs='?', type=int, default=448, 
+    parser.add_argument('--img_cols', nargs='?', type=int, default=448,
                         help='Width of the input image')
     parser.add_argument('--seg_model_path', nargs='?', type=str, default='checkpoints/mbd.pkl',
                         help='Path to previous saved model to restart from')
