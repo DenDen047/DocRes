@@ -1,3 +1,5 @@
+import time
+from tqdm import tqdm
 import torch
 import onnx
 import onnxruntime as ort
@@ -62,10 +64,20 @@ torch.onnx.export(model, dummy_input, onnx_model_path,
 # Step 5: Verify the ONNX model
 onnx_model = onnx.load(onnx_model_path)
 onnx.checker.check_model(onnx_model)
+print("Model successfully converted and verified!")
 
 # Test with ONNX Runtime
 ort_session = ort.InferenceSession(onnx_model_path)
 ort_inputs = {ort_session.get_inputs()[0].name: dummy_input.numpy()}
-ort_outputs = ort_session.run(None, ort_inputs)
 
-print("Model successfully converted and verified!")
+# Measure inference time
+num_iterations = 10
+total_time = 0
+for _ in tqdm(range(num_iterations)):
+    start_time = time.time()
+    ort_outputs = ort_session.run(None, ort_inputs)
+    end_time = time.time()
+    total_time += (end_time - start_time)
+
+average_time = total_time / num_iterations
+print(f"Average inference time over {num_iterations} iterations: {average_time:.4f} seconds")
