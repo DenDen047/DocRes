@@ -230,3 +230,4 @@ pyrightconfig.json
 
 **/*.pkl
 **/*.pyc
+checkpoints/**
